@@ -15,7 +15,7 @@ import psycopg2
 from psycopg2.extras import RealDictCursor
 
 # ═══════════════════════════════════════════════
-#              КОНФИГУРАЦИЯ СИСТЕМЫ
+#              SYSTEM CONFIGURATION
 # ═══════════════════════════════════════════════
 TOKEN = os.getenv("BOT_TOKEN")
 ADMIN_ID = os.getenv("ADMIN_ID")
@@ -23,14 +23,14 @@ DATABASE_URL = os.getenv("DATABASE_URL")
 CRYPTO_BOT_TOKEN = os.getenv("CRYPTO_BOT_TOKEN")
 
 if not TOKEN or not ADMIN_ID or not CRYPTO_BOT_TOKEN:
-    raise ValueError("Проверьте BOT_TOKEN, ADMIN_ID и CRYPTO_BOT_TOKEN в переменных Railway!")
+    raise ValueError("Check BOT_TOKEN, ADMIN_ID and CRYPTO_BOT_TOKEN in Railway environment variables!")
 
 ADMIN_ID = int(ADMIN_ID)
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
 
 # ═══════════════════════════════════════════════
-#              ПЛАНЫ ПОДПИСОК
+#              SUBSCRIPTION PLANS
 # ═══════════════════════════════════════════════
 SUBSCRIPTION_PLANS = {
     "free":   {"limit": 20,  "name": "FREE",   "price": 0,   "emoji": "⬜"},
@@ -39,7 +39,7 @@ SUBSCRIPTION_PLANS = {
 }
 
 # ═══════════════════════════════════════════════
-#         OTC ВАЛЮТНЫЕ ПАРЫ С ФЛАГАМИ
+#         OTC CURRENCY PAIRS WITH FLAGS
 # ═══════════════════════════════════════════════
 pairs = [
     "🇦🇪 AED/CNY OTC",
@@ -56,17 +56,17 @@ pairs = [
     "🇸🇦 SAR/CNY OTC",
 ]
 
-# Таймфреймы для OTC
-times = ["⏱ 5 сек", "⏱ 10 сек", "⏱ 15 сек", "⏱ 30 сек"]
+# Timeframes for OTC
+times = ["⏱ 5 sec", "⏱ 10 sec", "⏱ 15 sec", "⏱ 30 sec"]
 
 # ═══════════════════════════════════════════════
-#         ПРОВЕРКА РАБОЧЕГО ВРЕМЕНИ РЫНКА
+#         MARKET HOURS CHECK
 # ═══════════════════════════════════════════════
 def is_market_open() -> bool:
     return True
 
 # ════════════════════════════════════════════════
-#              РАБОТА С PostgreSQL
+#              PostgreSQL OPERATIONS
 # ════════════════════════════════════════════════
 def get_db_connection():
     return psycopg2.connect(DATABASE_URL, sslmode='require')
@@ -102,7 +102,7 @@ def init_db():
         cursor.close()
         conn.close()
     except Exception as e:
-        print(f"Ошибка инициализации БД: {e}")
+        print(f"DB initialization error: {e}")
 
 def db_get_user(user_id):
     try:
@@ -142,7 +142,7 @@ def db_get_user(user_id):
                 "username":    row.get('username', ''),
             }
     except Exception as e:
-        print(f"Ошибка чтения из БД: {e}")
+        print(f"DB read error: {e}")
     return {"has_access": False, "signals": 0, "daily_count": 0,
             "last_date": "", "sub_type": "free", "sub_expires": None, "username": ""}
 
@@ -174,7 +174,7 @@ def db_update_user(user_id, has_access=None, signals=None, daily=None,
         cursor.close()
         conn.close()
     except Exception as e:
-        print(f"Ошибка обновления БД: {e}")
+        print(f"DB update error: {e}")
 
 def db_get_total_users():
     try:
@@ -209,7 +209,7 @@ async def create_invoice(amount, plan_name):
     payload = {
         "asset":        "USDT",
         "amount":       str(amount),
-        "description":  f"Подписка {plan_name} на 7 дней | AI Trading Terminal",
+        "description":  f"Subscription {plan_name} for 7 days | AI Trading Terminal",
         "paid_btn_name":"callback",
         "paid_btn_url": "https://t.me/CryptoBot"
     }
@@ -228,18 +228,18 @@ async def check_invoice(invoice_id):
     return False
 
 # ════════════════════════════════════════════════
-#   ГЕНЕРАТОР OTC-СИГНАЛА (автономный режим)
+#   OTC SIGNAL GENERATOR (autonomous mode)
 # ════════════════════════════════════════════════
 def generate_otc_signal(pair: str, timeframe: str) -> tuple[str, int, str]:
     now = datetime.utcnow()
 
-    if "5 сек" in timeframe:
+    if "5 sec" in timeframe:
         bucket = int(now.timestamp() / 5)
-    elif "10 сек" in timeframe:
+    elif "10 sec" in timeframe:
         bucket = int(now.timestamp() / 10)
-    elif "15 сек" in timeframe:
+    elif "15 sec" in timeframe:
         bucket = int(now.timestamp() / 15)
-    elif "30 сек" in timeframe:
+    elif "30 sec" in timeframe:
         bucket = int(now.timestamp() / 30)
     else:
         bucket = int(now.timestamp() / 60)
@@ -250,73 +250,73 @@ def generate_otc_signal(pair: str, timeframe: str) -> tuple[str, int, str]:
     rsi = rng.uniform(25, 75)
     if rsi <= 35:
         rsi_vote = +2
-        rsi_desc = f"RSI {rsi:.1f} — перепроданность"
+        rsi_desc = f"RSI {rsi:.1f} — oversold"
     elif rsi <= 45:
         rsi_vote = +1
-        rsi_desc = f"RSI {rsi:.1f} — нижняя зона"
+        rsi_desc = f"RSI {rsi:.1f} — lower zone"
     elif rsi >= 65:
         rsi_vote = -2
-        rsi_desc = f"RSI {rsi:.1f} — перекупленность"
+        rsi_desc = f"RSI {rsi:.1f} — overbought"
     elif rsi >= 55:
         rsi_vote = -1
-        rsi_desc = f"RSI {rsi:.1f} — верхняя зона"
+        rsi_desc = f"RSI {rsi:.1f} — upper zone"
     else:
         rsi_vote = rng.choice([-1, 0, 0, +1])
-        rsi_desc = f"RSI {rsi:.1f} — нейтраль"
+        rsi_desc = f"RSI {rsi:.1f} — neutral"
 
     ema_options = [
-        (+2, "EMA — бычий кроссовер"),
-        (-2, "EMA — медвежий кроссовер"),
-        (+1, "EMA — восходящий тренд"),
-        (-1, "EMA — нисходящий тренд"),
-        (0,  "EMA — боковик"),
+        (+2, "EMA — bullish crossover"),
+        (-2, "EMA — bearish crossover"),
+        (+1, "EMA — uptrend"),
+        (-1, "EMA — downtrend"),
+        (0,  "EMA — sideways"),
     ]
     ema_vote, ema_desc = rng.choices(ema_options, weights=[15, 15, 25, 25, 20])[0]
 
     macd_options = [
-        (+2, "MACD — бычий разворот"),
-        (-2, "MACD — медвежий разворот"),
-        (+1, "MACD — положительный"),
-        (-1, "MACD — отрицательный"),
-        (0,  "MACD — нейтральный"),
+        (+2, "MACD — bullish reversal"),
+        (-2, "MACD — bearish reversal"),
+        (+1, "MACD — positive"),
+        (-1, "MACD — negative"),
+        (0,  "MACD — neutral"),
     ]
     macd_vote, macd_desc = rng.choices(macd_options, weights=[15, 15, 25, 25, 20])[0]
 
     bb_options = [
-        (+2, "BB — отскок от нижней полосы"),
-        (-2, "BB — отскок от верхней полосы"),
-        (+1, "BB — нижняя зона"),
-        (-1, "BB — верхняя зона"),
-        (0,  "BB — середина канала"),
+        (+2, "BB — bounce from lower band"),
+        (-2, "BB — bounce from upper band"),
+        (+1, "BB — lower zone"),
+        (-1, "BB — upper zone"),
+        (0,  "BB — middle of channel"),
     ]
     bb_vote, bb_desc = rng.choices(bb_options, weights=[12, 12, 26, 26, 24])[0]
 
     stoch_k = rng.uniform(15, 85)
     if stoch_k <= 20:
         stoch_vote = +2
-        stoch_desc = f"Stoch {stoch_k:.0f} — перепроданность"
+        stoch_desc = f"Stoch {stoch_k:.0f} — oversold"
     elif stoch_k >= 80:
         stoch_vote = -2
-        stoch_desc = f"Stoch {stoch_k:.0f} — перекупленность"
+        stoch_desc = f"Stoch {stoch_k:.0f} — overbought"
     elif stoch_k < 40:
         stoch_vote = +1
-        stoch_desc = f"Stoch {stoch_k:.0f} — нижняя зона"
+        stoch_desc = f"Stoch {stoch_k:.0f} — lower zone"
     elif stoch_k > 60:
         stoch_vote = -1
-        stoch_desc = f"Stoch {stoch_k:.0f} — верхняя зона"
+        stoch_desc = f"Stoch {stoch_k:.0f} — upper zone"
     else:
         stoch_vote = rng.choice([-1, 0, +1])
-        stoch_desc = f"Stoch {stoch_k:.0f} — нейтраль"
+        stoch_desc = f"Stoch {stoch_k:.0f} — neutral"
 
     pattern_options = [
-        (+1, "бычий пин-бар"),
-        (+1, "бычье поглощение"),
-        (+1, "три белых солдата"),
-        (-1, "медвежий пин-бар"),
-        (-1, "медвежье поглощение"),
-        (-1, "три чёрных вороны"),
-        (0,  "доджи"),
-        (0,  "нет паттерна"),
+        (+1, "bullish pin bar"),
+        (+1, "bullish engulfing"),
+        (+1, "three white soldiers"),
+        (-1, "bearish pin bar"),
+        (-1, "bearish engulfing"),
+        (-1, "three black crows"),
+        (0,  "doji"),
+        (0,  "no pattern"),
     ]
     pattern_vote, pattern_desc = rng.choices(
         pattern_options,
@@ -349,21 +349,21 @@ def generate_otc_signal(pair: str, timeframe: str) -> tuple[str, int, str]:
 
 
 # ════════════════════════════════════════════════
-#         РАНГИ И УТИЛИТЫ
+#         RANKS AND UTILITIES
 # ════════════════════════════════════════════════
 RANKS = [
-    (0,    100,  "🌱 Новичок",      "Retail"),
-    (101,  300,  "📊 Трейдер",       "Prop Firm"),
-    (301,  1000, "📈 Про-Трейдер",   "Institutional"),
-    (1001, 2000, "🔥 Эксперт",       "Smart Money"),
-    (2001, 9999999, "👑 Маркет-Мейкер", "Whale"),
+    (0,    100,  "🌱 Beginner",      "Retail"),
+    (101,  300,  "📊 Trader",        "Prop Firm"),
+    (301,  1000, "📈 Pro Trader",    "Institutional"),
+    (1001, 2000, "🔥 Expert",        "Smart Money"),
+    (2001, 9999999, "👑 Market Maker", "Whale"),
 ]
 
 def get_rank(count):
     for lo, hi, title, level in RANKS:
         if lo <= count <= hi:
             return f"{title} ({level})"
-    return "👑 Маркет-Мейкер (Whale)"
+    return "👑 Market Maker (Whale)"
 
 def get_next_rank(count):
     for lo, hi, title, level in RANKS:
@@ -408,20 +408,20 @@ def rank_progress_bar(current: int, lo: int, hi: int) -> str:
     return f"[{bar}] {int(pct * 100)}%"
 
 # ════════════════════════════════════════════════
-#         ДИЗАЙН-КОНСТАНТЫ  (укороченные линии)
+#         DESIGN CONSTANTS (short lines)
 # ════════════════════════════════════════════════
 DIV  = "───────────────"
 SDIV = "┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈"
 
 # ════════════════════════════════════════════════
-#              ВРЕМЕННЫЕ ДАННЫЕ
+#              TEMPORARY DATA
 # ════════════════════════════════════════════════
 user_temp_data   = {}
 pending_users    = set()
 pending_support  = set()
 pending_lot_calc = set()
 
-last_signal_request = {}   # uid -> timestamp последней УСПЕШНОЙ отправки сигнала
+last_signal_request = {}   # uid -> timestamp of last successful signal
 
 # ════════════════════════════════════════════════
 #              MIDDLEWARE
@@ -435,17 +435,17 @@ class AccessMiddleware(BaseMiddleware):
                 return await handler(event, data)
             user_info = db_get_user(uid)
             allowed = [
-                "🔐 Активировать доступ", "📩 Отправить ID Pocket Option",
-                "⬅️ Назад", "/start", "⬅️ В меню", "/vip", "/help",
-                "🆘 Поддержка", "🚀 О боте"
+                "🔐 Activate Access", "📩 Send Pocket Option ID",
+                "⬅️ Back", "/start", "⬅️ Menu", "/vip", "/help",
+                "🆘 Support", "🚀 About"
             ]
             if not user_info["has_access"] and uid not in pending_users and uid not in pending_support:
                 if text not in allowed:
                     await event.answer(
-                        "🔒 <b>ДОСТУП ОГРАНИЧЕН</b>\n"
+                        "🔒 <b>ACCESS RESTRICTED</b>\n"
                         f"{DIV}\n"
-                        "Раздел доступен только верифицированным трейдерам.\n\n"
-                        "Нажмите <b>«🔐 Активировать доступ»</b>",
+                        "This section is available to verified traders only.\n\n"
+                        "Press <b>«🔐 Activate Access»</b>",
                         parse_mode="HTML"
                     )
                     return
@@ -454,26 +454,26 @@ class AccessMiddleware(BaseMiddleware):
 dp.message.middleware(AccessMiddleware())
 
 # ════════════════════════════════════════════════
-#              КЛАВИАТУРЫ
+#              KEYBOARDS
 # ════════════════════════════════════════════════
 def get_main_menu(has_access: bool):
     keyboard = [
-        [KeyboardButton(text="📊 Торговая панель"), KeyboardButton(text="⚡ Получить сигнал")],
-        [KeyboardButton(text="👤 Профиль"),          KeyboardButton(text="📈 Статистика")],
-        [KeyboardButton(text="💎 Подписка"),          KeyboardButton(text="🚀 О боте")],
-        [KeyboardButton(text="🧮 Калькулятор лота")],
+        [KeyboardButton(text="📊 Trading Panel"), KeyboardButton(text="⚡ Get Signal")],
+        [KeyboardButton(text="👤 Profile"),        KeyboardButton(text="📈 Statistics")],
+        [KeyboardButton(text="💎 Subscription"),   KeyboardButton(text="🚀 About")],
+        [KeyboardButton(text="🧮 Lot Calculator")],
     ]
     row_bottom = []
     if not has_access:
-        row_bottom.append(KeyboardButton(text="🔐 Активировать доступ"))
-    row_bottom.append(KeyboardButton(text="🆘 Поддержка"))
+        row_bottom.append(KeyboardButton(text="🔐 Activate Access"))
+    row_bottom.append(KeyboardButton(text="🆘 Support"))
     keyboard.append(row_bottom)
     return ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
 
 access_kb = ReplyKeyboardMarkup(
     keyboard=[
-        [KeyboardButton(text="📩 Отправить ID Pocket Option")],
-        [KeyboardButton(text="⬅️ Назад")]
+        [KeyboardButton(text="📩 Send Pocket Option ID")],
+        [KeyboardButton(text="⬅️ Back")]
     ],
     resize_keyboard=True
 )
@@ -489,133 +489,133 @@ def get_pair_kb():
             ])
         else:
             rows.append([KeyboardButton(text=pair_list[i])])
-    rows.append([KeyboardButton(text="⬅️ Назад")])
+    rows.append([KeyboardButton(text="⬅️ Back")])
     return ReplyKeyboardMarkup(keyboard=rows, resize_keyboard=True)
 
 pair_kb = get_pair_kb()
 
 time_kb = ReplyKeyboardMarkup(
     keyboard=[
-        [KeyboardButton(text="⏱ 5 сек"),  KeyboardButton(text="⏱ 10 сек")],
-        [KeyboardButton(text="⏱ 15 сек"), KeyboardButton(text="⏱ 30 сек")],
-        [KeyboardButton(text="⬅️ Назад")]
+        [KeyboardButton(text="⏱ 5 sec"),  KeyboardButton(text="⏱ 10 sec")],
+        [KeyboardButton(text="⏱ 15 sec"), KeyboardButton(text="⏱ 30 sec")],
+        [KeyboardButton(text="⬅️ Back")]
     ],
     resize_keyboard=True
 )
 signal_kb = ReplyKeyboardMarkup(
     keyboard=[
-        [KeyboardButton(text="⚡ Получить сигнал")],
-        [KeyboardButton(text="📊 Торговая панель"), KeyboardButton(text="⬅️ В меню")]
+        [KeyboardButton(text="⚡ Get Signal")],
+        [KeyboardButton(text="📊 Trading Panel"), KeyboardButton(text="⬅️ Menu")]
     ],
     resize_keyboard=True
 )
 back_kb = ReplyKeyboardMarkup(
-    keyboard=[[KeyboardButton(text="⬅️ Назад")]],
+    keyboard=[[KeyboardButton(text="⬅️ Back")]],
     resize_keyboard=True
 )
 
 def get_sub_kb(current_plan: str = "free"):
     buttons = []
     if current_plan == "free":
-        buttons.append([InlineKeyboardButton(text="🔵 JUNIOR — 100$ / 7 дней", callback_data="buy_junior")])
-        buttons.append([InlineKeyboardButton(text="🟣 PRO — 200$ / 7 дней",   callback_data="buy_pro")])
+        buttons.append([InlineKeyboardButton(text="🔵 JUNIOR — 100$ / 7 days", callback_data="buy_junior")])
+        buttons.append([InlineKeyboardButton(text="🟣 PRO — 200$ / 7 days",    callback_data="buy_pro")])
     elif current_plan == "junior":
-        buttons.append([InlineKeyboardButton(text="🔄 Продлить JUNIOR — 100$ / 7 дней", callback_data="buy_junior")])
-        buttons.append([InlineKeyboardButton(text="⬆️ Улучшить до PRO — 200$ / 7 дней", callback_data="buy_pro")])
+        buttons.append([InlineKeyboardButton(text="🔄 Renew JUNIOR — 100$ / 7 days", callback_data="buy_junior")])
+        buttons.append([InlineKeyboardButton(text="⬆️ Upgrade to PRO — 200$ / 7 days", callback_data="buy_pro")])
     elif current_plan == "pro":
-        buttons.append([InlineKeyboardButton(text="🔄 Продлить PRO — 200$ / 7 дней", callback_data="buy_pro")])
-        buttons.append([InlineKeyboardButton(text="🔵 Сменить на JUNIOR — 100$ / 7 дней", callback_data="buy_junior")])
-    buttons.append([InlineKeyboardButton(text="📊 Сравнить тарифы", callback_data="compare_plans")])
+        buttons.append([InlineKeyboardButton(text="🔄 Renew PRO — 200$ / 7 days", callback_data="buy_pro")])
+        buttons.append([InlineKeyboardButton(text="🔵 Switch to JUNIOR — 100$ / 7 days", callback_data="buy_junior")])
+    buttons.append([InlineKeyboardButton(text="📊 Compare Plans", callback_data="compare_plans")])
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 def get_upgrade_kb():
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🔵 JUNIOR — 50 сигналов/день | 100$", callback_data="buy_junior")],
-        [InlineKeyboardButton(text="🟣 PRO — 100 сигналов/день | 200$",  callback_data="buy_pro")],
-        [InlineKeyboardButton(text="📊 Сравнить тарифы",                  callback_data="compare_plans")],
+        [InlineKeyboardButton(text="🔵 JUNIOR — 50 signals/day | 100$", callback_data="buy_junior")],
+        [InlineKeyboardButton(text="🟣 PRO — 100 signals/day | 200$",   callback_data="buy_pro")],
+        [InlineKeyboardButton(text="📊 Compare Plans",                   callback_data="compare_plans")],
     ])
 
 def get_confirm_sub_kb(invoice_url, invoice_id, plan_key):
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="💳 Оплатить (USDT)", url=invoice_url)],
-        [InlineKeyboardButton(text="✅ Проверить оплату", callback_data=f"check_{invoice_id}_{plan_key}")],
-        [InlineKeyboardButton(text="🔙 Назад к тарифам",  callback_data="back_to_plans")],
+        [InlineKeyboardButton(text="💳 Pay (USDT)", url=invoice_url)],
+        [InlineKeyboardButton(text="✅ Check Payment", callback_data=f"check_{invoice_id}_{plan_key}")],
+        [InlineKeyboardButton(text="🔙 Back to Plans",  callback_data="back_to_plans")],
     ])
 
 # ════════════════════════════════════════════════
-#              ХЕНДЛЕРЫ ПОДПИСОК
+#              SUBSCRIPTION HANDLERS
 # ════════════════════════════════════════════════
-@dp.message(F.text == "💎 Подписка")
+@dp.message(F.text == "💎 Subscription")
 async def sub_menu(message: Message):
     u     = db_get_user(message.from_user.id)
     plan  = SUBSCRIPTION_PLANS[u['sub_type']]
     limit = plan['limit']
     emoji = plan['emoji']
 
-    exp_str = "∞ Бессрочно"
+    exp_str = "∞ Lifetime"
     days_left_str = ""
     if u['sub_expires']:
         exp_str = u['sub_expires'].strftime("%d.%m.%Y %H:%M")
         days_left = (u['sub_expires'] - datetime.now()).days
         days_used = 7 - days_left
         bar = days_bar(days_used, 7)
-        days_left_str = f"\n  Осталось: <code>[{bar}]</code> <b>{max(days_left, 0)} дн.</b>"
+        days_left_str = f"\n  Remaining: <code>[{bar}]</code> <b>{max(days_left, 0)} days</b>"
 
     renew_block = ""
     if u['sub_type'] != 'free':
         renew_block = (
             f"\n{SDIV}\n"
-            "🔄 <b>Продление / смена тарифа</b>\n"
-            "<i>Срок добавится к текущему остатку.</i>\n"
+            "🔄 <b>Renew / Change Plan</b>\n"
+            "<i>Days will be added to your current balance.</i>\n"
         )
 
     text = (
-        "💎 <b>ПОДПИСКА</b>\n"
+        "💎 <b>SUBSCRIPTION</b>\n"
         f"{DIV}\n\n"
-        f"  Тариф:    {emoji} <b>{u['sub_type'].upper()}</b>\n"
-        f"  Лимит:    <b>{limit} сигналов / день</b>\n"
-        f"  Истекает: <b>{exp_str}</b>"
+        f"  Plan:    {emoji} <b>{u['sub_type'].upper()}</b>\n"
+        f"  Limit:   <b>{limit} signals / day</b>\n"
+        f"  Expires: <b>{exp_str}</b>"
         f"{days_left_str}\n"
         f"{renew_block}"
         f"\n{DIV}\n"
-        "📦 <b>Тарифы:</b>\n\n"
-        "⬜ <b>FREE</b>   — 20 сигналов / день  <i>(бесплатно)</i>\n"
-        "🔵 <b>JUNIOR</b> — 50 сигналов / день  <i>100$ / 7 дней</i>\n"
-        "🟣 <b>PRO</b>    — 100 сигналов / день  <i>200$ / 7 дней</i>\n\n"
-        "<i>Оплата в <b>USDT</b> через CryptoBot — мгновенно.</i>"
+        "📦 <b>Plans:</b>\n\n"
+        "⬜ <b>FREE</b>   — 20 signals / day  <i>(free)</i>\n"
+        "🔵 <b>JUNIOR</b> — 50 signals / day  <i>100$ / 7 days</i>\n"
+        "🟣 <b>PRO</b>    — 100 signals / day  <i>200$ / 7 days</i>\n\n"
+        "<i>Payment in <b>USDT</b> via CryptoBot — instant.</i>"
     )
     await message.answer(text, reply_markup=get_sub_kb(u['sub_type']), parse_mode="HTML")
 
 @dp.callback_query(F.data == "compare_plans")
 async def compare_plans(callback: CallbackQuery):
     text = (
-        "📊 <b>СРАВНЕНИЕ ТАРИФОВ</b>\n"
+        "📊 <b>PLAN COMPARISON</b>\n"
         f"{DIV}\n\n"
         "<code>"
-        "Функция           FREE  JUN  PRO\n"
-        "───────────────────────────────\n"
-        "Сигналов/день       20   50  100\n"
-        "OTC-анализ          ✅   ✅   ✅\n"
-        "RSI/EMA/MACD        ✅   ✅   ✅\n"
-        "Уверенность ИИ      ✅   ✅   ✅\n"
-        "Калькулятор         ✅   ✅   ✅\n"
-        "Поддержка           ❌   ✅   ✅\n"
-        "Аналитика           ❌   ✅   ✅\n"
-        "Волатильность       ❌   ✅   ✅\n"
-        "VIP-уведомления     ❌   ❌   ✅\n"
-        "Сила тренда         ❌   ❌   ✅\n"
-        "Объём сделки        ❌   ❌   ✅\n"
-        "ТОП стратегии       ❌   ❌   ✅\n"
-        "────────────────────────────────\n"
-        "Цена                0$ 100$ 200$\n"
-        "Срок                ∞  7дн  7дн\n"
+        "Feature              FREE  JUN  PRO\n"
+        "───────────────────────────────────\n"
+        "Signals/day            20   50  100\n"
+        "OTC analysis           ✅   ✅   ✅\n"
+        "RSI/EMA/MACD           ✅   ✅   ✅\n"
+        "AI confidence          ✅   ✅   ✅\n"
+        "Calculator             ✅   ✅   ✅\n"
+        "Support                ❌   ✅   ✅\n"
+        "Analytics              ❌   ✅   ✅\n"
+        "Volatility             ❌   ✅   ✅\n"
+        "VIP notifications      ❌   ❌   ✅\n"
+        "Trend strength         ❌   ❌   ✅\n"
+        "Trade volume           ❌   ❌   ✅\n"
+        "TOP strategies         ❌   ❌   ✅\n"
+        "────────────────────────────────────\n"
+        "Price                  0$ 100$ 200$\n"
+        "Duration               ∞  7d   7d\n"
         "</code>\n"
         f"{DIV}\n"
-        "<i>Больше сигналов = больше возможностей</i>"
+        "<i>More signals = more opportunities</i>"
     )
     kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🔵 Купить JUNIOR — 100$", callback_data="buy_junior")],
-        [InlineKeyboardButton(text="🟣 Купить PRO — 200$",   callback_data="buy_pro")],
+        [InlineKeyboardButton(text="🔵 Buy JUNIOR — 100$", callback_data="buy_junior")],
+        [InlineKeyboardButton(text="🟣 Buy PRO — 200$",    callback_data="buy_pro")],
     ])
     await callback.message.edit_text(text, reply_markup=kb, parse_mode="HTML")
 
@@ -632,7 +632,7 @@ async def process_buy(callback: CallbackQuery):
     res      = await create_invoice(plan['price'], plan['name'])
 
     is_renew    = u['sub_type'] == plan_key
-    action_word = "ПРОДЛЕНИЕ" if is_renew else "ПОКУПКА"
+    action_word = "RENEWAL" if is_renew else "PURCHASE"
 
     if res['ok']:
         invoice_url = res['result']['pay_url']
@@ -642,26 +642,26 @@ async def process_buy(callback: CallbackQuery):
         renew_note = ""
         if is_renew and u['sub_expires']:
             new_exp = u['sub_expires'] + timedelta(days=7)
-            renew_note = f"\n  📅 Новая дата: <b>{new_exp.strftime('%d.%m.%Y')}</b>\n"
+            renew_note = f"\n  📅 New expiry: <b>{new_exp.strftime('%d.%m.%Y')}</b>\n"
 
         await callback.message.edit_text(
-            f"🧾 <b>СЧЁТ — {action_word}</b>\n"
+            f"🧾 <b>INVOICE — {action_word}</b>\n"
             f"{DIV}\n\n"
-            f"  Тариф:  {plan['emoji']} <b>{plan['name']}</b>\n"
-            f"  Сумма:  <b>{plan['price']} USDT</b>\n"
-            f"  Срок:   <b>7 дней</b>\n"
-            f"  Лимит:  <b>{plan['limit']} сигналов / день</b>\n"
+            f"  Plan:     {plan['emoji']} <b>{plan['name']}</b>\n"
+            f"  Amount:   <b>{plan['price']} USDT</b>\n"
+            f"  Duration: <b>7 days</b>\n"
+            f"  Limit:    <b>{plan['limit']} signals / day</b>\n"
             f"{renew_note}"
             f"{DIV}\n"
-            f"1️⃣ Нажмите <b>«💳 Оплатить»</b>\n"
-            f"2️⃣ Совершите оплату в USDT\n"
-            f"3️⃣ Нажмите <b>«✅ Проверить оплату»</b>\n\n"
-            f"<i>⚡ Активация мгновенная после подтверждения.</i>",
+            f"1️⃣ Press <b>«💳 Pay»</b>\n"
+            f"2️⃣ Complete payment in USDT\n"
+            f"3️⃣ Press <b>«✅ Check Payment»</b>\n\n"
+            f"<i>⚡ Instant activation after confirmation.</i>",
             reply_markup=kb,
             parse_mode="HTML"
         )
     else:
-        await callback.answer("⚠️ Ошибка создания счёта. Попробуйте позже.", show_alert=True)
+        await callback.answer("⚠️ Invoice creation error. Please try again later.", show_alert=True)
 
 @dp.callback_query(F.data.startswith("check_"))
 async def process_check(callback: CallbackQuery):
@@ -680,33 +680,33 @@ async def process_check(callback: CallbackQuery):
         db_update_user(callback.from_user.id, sub_type=plan_key, sub_expires=expiry)
         plan = SUBSCRIPTION_PLANS[plan_key]
         await callback.message.edit_text(
-            f"🎉 <b>ОПЛАТА ПОДТВЕРЖДЕНА!</b>\n"
+            f"🎉 <b>PAYMENT CONFIRMED!</b>\n"
             f"{DIV}\n\n"
-            f"  Тариф:    {plan['emoji']} <b>{plan_key.upper()}</b>\n"
-            f"  Лимит:    <b>{plan['limit']} сигналов / день</b>\n"
-            f"  Истекает: <b>{expiry.strftime('%d.%m.%Y %H:%M')}</b>\n\n"
+            f"  Plan:    {plan['emoji']} <b>{plan_key.upper()}</b>\n"
+            f"  Limit:   <b>{plan['limit']} signals / day</b>\n"
+            f"  Expires: <b>{expiry.strftime('%d.%m.%Y %H:%M')}</b>\n\n"
             f"{DIV}\n"
-            f"🚀 <b>Терминал активирован!</b>\n"
-            f"<i>Профитных сделок и зелёного депозита! 📈</i>",
+            f"🚀 <b>Terminal activated!</b>\n"
+            f"<i>Profitable trades and a green balance! 📈</i>",
             parse_mode="HTML"
         )
         try:
             await bot.send_message(
                 ADMIN_ID,
-                f"💰 <b>НОВАЯ ОПЛАТА</b>\n"
+                f"💰 <b>NEW PAYMENT</b>\n"
                 f"👤 ID: <code>{callback.from_user.id}</code>\n"
-                f"📦 Тариф: <b>{plan_key.upper()}</b>\n"
-                f"💵 Сумма: <b>{plan['price']} USDT</b>\n"
-                f"📅 Истекает: <b>{expiry.strftime('%d.%m.%Y %H:%M')}</b>",
+                f"📦 Plan: <b>{plan_key.upper()}</b>\n"
+                f"💵 Amount: <b>{plan['price']} USDT</b>\n"
+                f"📅 Expires: <b>{expiry.strftime('%d.%m.%Y %H:%M')}</b>",
                 parse_mode="HTML"
             )
         except:
             pass
     else:
-        await callback.answer("❌ Оплата ещё не поступила. Подождите и проверьте снова.", show_alert=True)
+        await callback.answer("❌ Payment not received yet. Please wait and check again.", show_alert=True)
 
 # ════════════════════════════════════════════════
-#              КОМАНДЫ И ОСНОВНЫЕ ХЕНДЛЕРЫ
+#              COMMANDS AND MAIN HANDLERS
 # ════════════════════════════════════════════════
 @dp.message(CommandStart())
 async def start(message: Message):
@@ -719,73 +719,73 @@ async def start(message: Message):
         "│  🖥  AI TRADING TERMINAL  │\n"
         "│     OTC PRO v4.0        │\n"
         "└─────────────────────────┘\n\n"
-        "⚡ <b>Профессиональная система сигналов</b> для OTC-рынка Pocket Option.\n\n"
+        "⚡ <b>Professional signal system</b> for Pocket Option OTC market.\n\n"
         "🧠 <b>Smart Precision Engine:</b>\n"
-        "▸ 12 OTC-пар с флагами стран\n"
-        "▸ Таймфреймы: 5с / 10с / 15с / 30с\n"
-        "▸ 6 блоков анализа (RSI + EMA + MACD + BB + Stoch + паттерны)\n"
-        "▸ Уверенность ИИ: 78–96%\n\n"
-        f"👥 Трейдеров: <b>{total_users + 152:,}</b>\n"
+        "▸ 12 OTC pairs with country flags\n"
+        "▸ Timeframes: 5s / 10s / 15s / 30s\n"
+        "▸ 6 analysis blocks (RSI + EMA + MACD + BB + Stoch + patterns)\n"
+        "▸ AI confidence: 78–96%\n\n"
+        f"👥 Traders: <b>{total_users + 152:,}</b>\n"
         f"📡 WinRate: <b>88–96%</b>  |  🟢 <b>24/7</b>\n"
-        f"🕐 {(datetime.utcnow() + timedelta(hours=3)).strftime('%d.%m.%Y %H:%M')} МСК"
+        f"🕐 {(datetime.utcnow() + timedelta(hours=3)).strftime('%d.%m.%Y %H:%M')} MSK"
     )
     await message.answer(start_text, reply_markup=get_main_menu(u["has_access"]), parse_mode="HTML")
 
-@dp.message(F.text == "🚀 О боте")
+@dp.message(F.text == "🚀 About")
 async def about_bot(message: Message):
     pairs_list = "\n".join([f"  ▸ {p}" for p in pairs])
 
     text = (
         "🤖 <b>AI TRADING TERMINAL — OTC PRO v4.0</b>\n"
         f"{DIV}\n\n"
-        "📡 <b>Платформа:</b> Pocket Option (OTC)\n\n"
+        "📡 <b>Platform:</b> Pocket Option (OTC)\n\n"
         "🧠 <b>Smart Precision Engine v4:</b>\n"
         "  ▸ RSI(14)\n"
-        "  ▸ EMA(9/21) кроссовер + тренд\n"
+        "  ▸ EMA(9/21) crossover + trend\n"
         "  ▸ MACD(12,26,9)\n"
         "  ▸ Bollinger Bands(20,2)\n"
         "  ▸ Stochastic(14,3)\n"
-        "  ▸ Паттерны свечей (8 видов)\n"
-        "🎯 <b>Фильтр входа:</b> 3 из 6 блоков\n\n"
+        "  ▸ Candlestick patterns (8 types)\n"
+        "🎯 <b>Entry filter:</b> 3 of 6 blocks\n\n"
         f"{DIV}\n"
-        "💱 <b>OTC ПАРЫ (12 инструментов):</b>\n\n"
+        "💱 <b>OTC PAIRS (12 instruments):</b>\n\n"
         f"{pairs_list}\n\n"
         f"{DIV}\n"
-        "⏱ <b>Таймфреймы:</b> 5с · 10с · 15с · 30с\n"
-        "⏰ <b>Режим:</b> ПН–ВС 24/7\n\n"
+        "⏱ <b>Timeframes:</b> 5s · 10s · 15s · 30s\n"
+        "⏰ <b>Mode:</b> MON–SUN 24/7\n\n"
         f"{DIV}\n"
-        "📦 <b>Тарифы:</b>\n"
-        "  ⬜ FREE   — 20 сигналов / день\n"
-        "  🔵 JUNIOR — 50 сигналов / день  |  100$ / 7 дн\n"
-        "  🟣 PRO    — 100 сигналов / день  |  200$ / 7 дн\n\n"
+        "📦 <b>Plans:</b>\n"
+        "  ⬜ FREE   — 20 signals / day\n"
+        "  🔵 JUNIOR — 50 signals / day  |  100$ / 7 days\n"
+        "  🟣 PRO    — 100 signals / day  |  200$ / 7 days\n\n"
         f"{DIV}\n"
-        "⚠️ <i>Торговля бинарными опционами сопряжена с рисками. "
-        "Сигналы носят информационный характер. Соблюдайте мани-менеджмент.</i>"
+        "⚠️ <i>Trading binary options involves risks. "
+        "Signals are for informational purposes only. Always use proper money management.</i>"
     )
     await message.answer(text, parse_mode="HTML")
 
 # ════════════════════════════════════════════════
-#         🧮 КАЛЬКУЛЯТОР ЛОТА
+#         🧮 LOT CALCULATOR
 # ════════════════════════════════════════════════
-@dp.message(F.text == "🧮 Калькулятор лота")
+@dp.message(F.text == "🧮 Lot Calculator")
 async def lot_calculator(message: Message):
     pending_lot_calc.add(message.from_user.id)
     await message.answer(
-        "🧮 <b>КАЛЬКУЛЯТОР ЛОТА</b>\n"
+        "🧮 <b>LOT CALCULATOR</b>\n"
         f"{DIV}\n\n"
-        "Введите <b>баланс в долларах</b>:\n\n"
-        "<i>Минимум: 50$  |  Пример: 100 или 500</i>",
+        "Enter your <b>balance in dollars</b>:\n\n"
+        "<i>Minimum: 50$  |  Example: 100 or 500</i>",
         reply_markup=back_kb,
         parse_mode="HTML"
     )
 
 @dp.message(lambda msg: msg.from_user.id in pending_lot_calc)
 async def process_lot_calc(message: Message):
-    if message.text == "⬅️ Назад":
+    if message.text == "⬅️ Back":
         pending_lot_calc.discard(message.from_user.id)
         u = db_get_user(message.from_user.id)
         return await message.answer(
-            "🏠 <b>Главная панель</b>",
+            "🏠 <b>Main Panel</b>",
             reply_markup=get_main_menu(u["has_access"]),
             parse_mode="HTML"
         )
@@ -797,28 +797,28 @@ async def process_lot_calc(message: Message):
             raise ValueError
     except ValueError:
         return await message.answer(
-            "❌ Введите корректную сумму (только цифры > 0).\n"
-            "<i>Пример: 100</i>",
+            "❌ Enter a valid amount (numbers only, > 0).\n"
+            "<i>Example: 100</i>",
             parse_mode="HTML"
         )
 
     if balance < 50:
         return await message.answer(
-            "⚠️ <b>СЛИШКОМ МАЛЕНЬКИЙ БАЛАНС</b>\n"
+            "⚠️ <b>BALANCE TOO LOW</b>\n"
             f"{DIV}\n\n"
-            f"  Вы ввели: <b>{balance:,.2f}$</b>\n"
-            f"  Минимум: <b>50$</b>\n\n"
+            f"  You entered: <b>{balance:,.2f}$</b>\n"
+            f"  Minimum: <b>50$</b>\n\n"
             f"{SDIV}\n"
-            "❌ С таким балансом торговать <b>нельзя</b>.\n\n"
-            "При балансе ниже 50$ вы не сможете соблюдать базовые правила мани-менеджмента:\n\n"
-            "▸ Минимальная сделка на Pocket Option составляет <b>1$</b>\n"
-            "▸ Рекомендуемый риск на сделку — <b>1–2% от депозита</b>\n"
-            "▸ При балансе менее 50$ даже 1$ сделка = <b>2%+ риска</b>, что ведёт к быстрому сливу\n"
-            "▸ Серия из 5–7 убыточных сделок полностью уничтожит депозит\n\n"
+            "❌ Trading with this balance is <b>not recommended</b>.\n\n"
+            "With a balance below 50$ you cannot follow basic money management rules:\n\n"
+            "▸ Minimum trade on Pocket Option is <b>1$</b>\n"
+            "▸ Recommended risk per trade — <b>1–2% of deposit</b>\n"
+            "▸ With a balance under 50$, even a $1 trade = <b>2%+ risk</b>, leading to fast loss\n"
+            "▸ A streak of 5–7 losing trades will completely wipe the deposit\n\n"
             f"{SDIV}\n"
-            "💡 <b>Рекомендация:</b> пополните счёт до <b>минимум 50$</b>, "
-            "оптимально — от <b>100$</b> для комфортной торговли.\n\n"
-            "<i>Введите корректную сумму (от 50$):</i>",
+            "💡 <b>Recommendation:</b> top up to at least <b>50$</b>, "
+            "ideally from <b>100$</b> for comfortable trading.\n\n"
+            "<i>Enter a valid amount (from 50$):</i>",
             parse_mode="HTML"
         )
 
@@ -832,105 +832,105 @@ async def process_lot_calc(message: Message):
     bar_x = confidence_bar(50)
 
     await message.answer(
-        f"🧮 <b>КАЛЬКУЛЯТОР ЛОТА</b>\n"
+        f"🧮 <b>LOT CALCULATOR</b>\n"
         f"{DIV}\n\n"
-        f"  💰 Баланс: <b>{balance:,.2f}$</b>\n\n"
+        f"  💰 Balance: <b>{balance:,.2f}$</b>\n\n"
         f"{DIV}\n"
-        f"🟢 <b>Консервативно (1%)</b>\n"
+        f"🟢 <b>Conservative (1%)</b>\n"
         f"  <code>{bar_c}</code>  <b>{lot['conservative']:,.2f}$</b>\n\n"
-        f"🔵 <b>Умеренно (2%)</b> — оптимально ✅\n"
+        f"🔵 <b>Moderate (2%)</b> — optimal ✅\n"
         f"  <code>{bar_m}</code>  <b>{lot['moderate']:,.2f}$</b>\n\n"
-        f"🟡 <b>Агрессивно (3%)</b>\n"
+        f"🟡 <b>Aggressive (3%)</b>\n"
         f"  <code>{bar_a}</code>  <b>{lot['aggressive']:,.2f}$</b>\n\n"
-        f"🔴 <b>Максимум (5%)</b> — красная зона\n"
+        f"🔴 <b>Maximum (5%)</b> — red zone\n"
         f"  <code>{bar_x}</code>  <b>{lot['max_risk']:,.2f}$</b>\n\n"
         f"{DIV}\n"
-        f"💡 Оптимум: <b>{lot['moderate']:,.2f}$ – {lot['aggressive']:,.2f}$</b>\n"
-        f"<i>Никогда не рискуйте более 5% в одной сделке!</i>",
+        f"💡 Optimal: <b>{lot['moderate']:,.2f}$ – {lot['aggressive']:,.2f}$</b>\n"
+        f"<i>Never risk more than 5% in a single trade!</i>",
         reply_markup=get_main_menu(u["has_access"]),
         parse_mode="HTML"
     )
 
 # ════════════════════════════════════════════════
-#              АКТИВАЦИЯ ДОСТУПА
+#              ACCESS ACTIVATION
 # ════════════════════════════════════════════════
 @dp.message(Command("vip"))
-@dp.message(F.text == "🔐 Активировать доступ")
+@dp.message(F.text == "🔐 Activate Access")
 async def activate(message: Message):
     user_info = db_get_user(message.from_user.id)
     if user_info["has_access"]:
         return await message.answer(
-            "✅ <b>VIP-ЛИЦЕНЗИЯ АКТИВНА</b>\n"
+            "✅ <b>VIP LICENSE ACTIVE</b>\n"
             f"{DIV}\n"
-            "Все модули терминала разблокированы.",
+            "All terminal modules are unlocked.",
             parse_mode="HTML"
         )
     await message.answer(
-        "💎 <b>АКТИВАЦИЯ VIP-ЛИЦЕНЗИИ</b>\n"
+        "💎 <b>VIP LICENSE ACTIVATION</b>\n"
         f"{DIV}\n\n"
-        "📋 <b>3 простых шага:</b>\n\n"
-        "1️⃣ <b>Регистрация счёта:</b>\n"
-        "   🌍 Global: <a href='https://u3.shortink.io/register?utm_campaign=840876&utm_source=affiliate&utm_medium=sr&a=MystmHLdGn4JJU&al=1746882&ac=fx&cid=950203&code=ESX408'>Pocket Option (Официальный шлюз)</a>\n"
-        "   🇷🇺 RU/СНГ: <a href='https://po-ru4.click/register?utm_campaign=840876&utm_source=affiliate&utm_medium=sr&a=MystmHLdGn4JJU&al=1746882&ac=fx&cid=950203&code=ESX408'>Pocket Option (Зеркало)</a>\n\n"
-        "2️⃣ <b>Пополните депозит</b> от <b>$50</b>\n\n"
-        "3️⃣ <b>Отправьте ваш ID</b> кнопкой ниже\n\n"
+        "📋 <b>3 simple steps:</b>\n\n"
+        "1️⃣ <b>Register an account:</b>\n"
+        "   🌍 Global: <a href='https://u3.shortink.io/register?utm_campaign=845784&utm_source=affiliate&utm_medium=sr&a=e0FkuUtf0CHZA5&al=1760257&ac=bot&cid=954756&code=LXJ558'>Pocket Option (Official Gateway)</a>\n"
+        "   🇷🇺 RU/CIS: <a href='https://po-ru4.click/register?utm_campaign=845784&utm_source=affiliate&utm_medium=sr&a=e0FkuUtf0CHZA5&al=1760257&ac=bot&cid=954756&code=LXJ558'>Pocket Option (Mirror)</a>\n\n"
+        "2️⃣ <b>Top up your deposit</b> from <b>$50</b>\n\n"
+        "3️⃣ <b>Send your ID</b> using the button below\n\n"
         f"{DIV}\n"
-        "🎁 <b>+60% бонус</b> к депозиту при регистрации по ссылке!\n\n"
-        "⚠️ <b>Важно:</b> аккаунт должен быть зарегистрирован по нашей ссылке. "
-        "Иначе создайте новый строго по ссылке выше.\n\n"
-        "🔐 <i>Активация в течение нескольких минут после проверки.</i>",
+        "🎁 <b>+60% bonus</b> on deposit when registering via our link!\n\n"
+        "⚠️ <b>Important:</b> your account must be registered via our link. "
+        "If not, create a new one strictly via the link above.\n\n"
+        "🔐 <i>Activation within a few minutes after verification.</i>",
         reply_markup=access_kb,
         parse_mode="HTML",
         disable_web_page_preview=True
     )
 
 @dp.message(Command("help"))
-@dp.message(F.text == "🆘 Поддержка")
+@dp.message(F.text == "🆘 Support")
 async def help_cmd(message: Message):
     pending_support.add(message.from_user.id)
     await message.answer(
-        "🆘 <b>ПОДДЕРЖКА</b>\n"
+        "🆘 <b>SUPPORT</b>\n"
         f"{DIV}\n\n"
-        "Опишите проблему одним сообщением — передадим администратору.\n\n"
+        "Describe your issue in one message — we'll forward it to the admin.\n\n"
         "💬 <b>FAQ:</b>\n"
-        "▸ Активация → «🔐 Активировать доступ»\n"
-        "▸ ID Pocket Option → Личный кабинет → Профиль\n"
-        "▸ Лимит сигналов сбрасывается в 00:00 МСК\n"
-        "▸ Терминал работает 24/7\n\n"
-        "✍️ <b>Напишите ваш вопрос:</b>",
+        "▸ Activation → «🔐 Activate Access»\n"
+        "▸ Pocket Option ID → My Account → Profile\n"
+        "▸ Signal limit resets at 00:00 MSK\n"
+        "▸ Terminal operates 24/7\n\n"
+        "✍️ <b>Write your question:</b>",
         reply_markup=back_kb,
         parse_mode="HTML"
     )
 
-@dp.message(F.text == "📩 Отправить ID Pocket Option")
+@dp.message(F.text == "📩 Send Pocket Option ID")
 async def ask_id(message: Message):
     pending_users.add(message.from_user.id)
     await message.answer(
-        "🔢 <b>ВЕРИФИКАЦИЯ АККАУНТА</b>\n"
+        "🔢 <b>ACCOUNT VERIFICATION</b>\n"
         f"{DIV}\n\n"
-        "Введите <b>цифровой ID профиля Pocket Option</b>:\n\n"
-        "📍 <i>Где найти: Pocket Option → Аккаунт → Профиль</i>\n\n"
-        "⌨️ <b>Только цифры:</b>",
+        "Enter your <b>numeric Pocket Option profile ID</b>:\n\n"
+        "📍 <i>Where to find it: Pocket Option → Account → Profile</i>\n\n"
+        "⌨️ <b>Numbers only:</b>",
         reply_markup=back_kb,
         parse_mode="HTML"
     )
 
-@dp.message(F.text == "⬅️ Назад")
-@dp.message(F.text == "⬅️ В меню")
+@dp.message(F.text == "⬅️ Back")
+@dp.message(F.text == "⬅️ Menu")
 async def go_back(message: Message):
     pending_users.discard(message.from_user.id)
     pending_support.discard(message.from_user.id)
     pending_lot_calc.discard(message.from_user.id)
     u = db_get_user(message.from_user.id)
     await message.answer(
-        f"🏠 <b>Главная</b> · <i>{message.from_user.first_name}</i>",
+        f"🏠 <b>Home</b> · <i>{message.from_user.first_name}</i>",
         reply_markup=get_main_menu(u["has_access"]),
         parse_mode="HTML"
     )
 
 @dp.message(lambda msg: msg.from_user.id in pending_support)
 async def process_support_message(message: Message):
-    if message.text == "⬅️ Назад":
+    if message.text == "⬅️ Back":
         pending_support.discard(message.from_user.id)
         return await go_back(message)
     uid      = message.from_user.id
@@ -938,61 +938,61 @@ async def process_support_message(message: Message):
     name     = message.from_user.full_name or "—"
     await bot.send_message(
         ADMIN_ID,
-        f"📩 <b>ОБРАЩЕНИЕ В ПОДДЕРЖКУ</b>\n"
+        f"📩 <b>SUPPORT REQUEST</b>\n"
         f"━━━━━━━━━━━━━━━━━\n"
-        f"👤 Имя: <b>{name}</b>\n"
-        f"🔗 Ник: @{username}\n"
+        f"👤 Name: <b>{name}</b>\n"
+        f"🔗 Username: @{username}\n"
         f"🆔 ID: <code>{uid}</code>\n\n"
-        f"📝 <b>Сообщение:</b>\n{message.text}\n\n"
-        f"💬 Ответить: <code>/reply {uid} текст</code>",
+        f"📝 <b>Message:</b>\n{message.text}\n\n"
+        f"💬 Reply: <code>/reply {uid} text</code>",
         parse_mode="HTML"
     )
     pending_support.discard(uid)
     u = db_get_user(uid)
     await message.answer(
-        "✅ <b>Обращение принято!</b>\n"
-        "Ответим в течение 30 минут.",
+        "✅ <b>Request received!</b>\n"
+        "We'll respond within 30 minutes.",
         reply_markup=get_main_menu(u["has_access"]),
         parse_mode="HTML"
     )
 
 @dp.message(lambda msg: msg.from_user.id in pending_users)
 async def process_id(message: Message):
-    if message.text == "⬅️ Назад":
+    if message.text == "⬅️ Back":
         pending_users.discard(message.from_user.id)
         return await go_back(message)
     if not message.text or not message.text.isdigit():
         return await message.answer(
-            "❌ <b>Ошибка.</b> Введите <b>только цифры</b>.\n"
-            "<i>Пример: 12345678</i>",
+            "❌ <b>Error.</b> Enter <b>numbers only</b>.\n"
+            "<i>Example: 12345678</i>",
             parse_mode="HTML"
         )
     uid = message.from_user.id
     pending_users.discard(uid)
     await bot.send_message(
         ADMIN_ID,
-        f"🔔 <b>НОВАЯ ЗАЯВКА НА VIP</b>\n"
+        f"🔔 <b>NEW VIP APPLICATION</b>\n"
         f"━━━━━━━━━━━━━━━━━\n"
-        f"👤 Имя: <b>{message.from_user.full_name}</b>\n"
-        f"🔗 Ник: @{message.from_user.username or '—'}\n"
+        f"👤 Name: <b>{message.from_user.full_name}</b>\n"
+        f"🔗 Username: @{message.from_user.username or '—'}\n"
         f"🆔 TG ID: <code>{uid}</code>\n"
         f"💼 PO ID: <code>{message.text}</code>\n\n"
-        f"✅ Выдать: <code>/give {uid}</code>\n"
-        f"🚫 Отказать: <code>/block {uid}</code>",
+        f"✅ Grant: <code>/give {uid}</code>\n"
+        f"🚫 Deny: <code>/block {uid}</code>",
         parse_mode="HTML"
     )
     u = db_get_user(uid)
     await message.answer(
-        "⏳ <b>ЗАЯВКА ОТПРАВЛЕНА</b>\n"
+        "⏳ <b>APPLICATION SENT</b>\n"
         f"{DIV}\n\n"
-        f"🆔 ID Pocket Option: <code>{message.text}</code>\n\n"
-        "Ожидайте проверки. Активация — несколько минут.",
+        f"🆔 Pocket Option ID: <code>{message.text}</code>\n\n"
+        "Please wait for verification. Activation takes a few minutes.",
         reply_markup=get_main_menu(u["has_access"]),
         parse_mode="HTML"
     )
 
 # ════════════════════════════════════════════════
-#              АДМИНСКИЕ КОМАНДЫ
+#              ADMIN COMMANDS
 # ════════════════════════════════════════════════
 @dp.message(F.text.startswith("/give"))
 async def admin_give(message: Message):
@@ -1003,18 +1003,18 @@ async def admin_give(message: Message):
         db_update_user(target, has_access=True)
         await bot.send_message(
             target,
-            "🚀 <b>VIP-ДОСТУП АКТИВИРОВАН!</b>\n"
+            "🚀 <b>VIP ACCESS ACTIVATED!</b>\n"
             f"{DIV}\n\n"
-            "✅ Аккаунт верифицирован. Все модули разблокированы.\n\n"
-            "📊 Нажмите <b>«📊 Торговая панель»</b>\n"
-            "⚡ Или сразу <b>«⚡ Получить сигнал»</b>\n\n"
-            "<i>Профитных сделок! 📈</i>",
+            "✅ Account verified. All modules unlocked.\n\n"
+            "📊 Press <b>«📊 Trading Panel»</b>\n"
+            "⚡ Or go straight to <b>«⚡ Get Signal»</b>\n\n"
+            "<i>Profitable trades! 📈</i>",
             parse_mode="HTML",
             reply_markup=get_main_menu(True)
         )
-        await message.answer(f"✅ Доступ для <code>{target}</code> активирован.", parse_mode="HTML")
+        await message.answer(f"✅ Access for <code>{target}</code> activated.", parse_mode="HTML")
     except Exception as e:
-        await message.answer(f"⚠️ Ошибка: {e}\nФормат: <code>/give ID</code>", parse_mode="HTML")
+        await message.answer(f"⚠️ Error: {e}\nFormat: <code>/give ID</code>", parse_mode="HTML")
 
 @dp.message(F.text.startswith("/block"))
 async def admin_block(message: Message):
@@ -1026,18 +1026,18 @@ async def admin_block(message: Message):
         try:
             await bot.send_message(
                 target,
-                "🛑 <b>ДОСТУП АННУЛИРОВАН</b>\n"
+                "🛑 <b>ACCESS REVOKED</b>\n"
                 f"{DIV}\n\n"
-                "VIP-лицензия отозвана администратором.\n"
-                "Обратитесь в поддержку: /help",
+                "VIP license has been revoked by the administrator.\n"
+                "Contact support: /help",
                 parse_mode="HTML",
                 reply_markup=get_main_menu(False)
             )
         except:
             pass
-        await message.answer(f"🚫 Доступ для <code>{target}</code> заблокирован.", parse_mode="HTML")
+        await message.answer(f"🚫 Access for <code>{target}</code> blocked.", parse_mode="HTML")
     except Exception as e:
-        await message.answer(f"⚠️ Ошибка: {e}\nФормат: <code>/block ID</code>", parse_mode="HTML")
+        await message.answer(f"⚠️ Error: {e}\nFormat: <code>/block ID</code>", parse_mode="HTML")
 
 @dp.message(F.text.startswith("/reply"))
 async def admin_reply(message: Message):
@@ -1049,14 +1049,14 @@ async def admin_reply(message: Message):
         text   = parts[2]
         await bot.send_message(
             target,
-            f"💬 <b>ОТВЕТ ПОДДЕРЖКИ</b>\n"
+            f"💬 <b>SUPPORT REPLY</b>\n"
             f"{DIV}\n\n"
             f"{text}",
             parse_mode="HTML"
         )
-        await message.answer(f"✅ Ответ отправлен пользователю <code>{target}</code>.", parse_mode="HTML")
+        await message.answer(f"✅ Reply sent to user <code>{target}</code>.", parse_mode="HTML")
     except Exception as e:
-        await message.answer(f"⚠️ Ошибка: {e}\nФормат: <code>/reply ID текст</code>", parse_mode="HTML")
+        await message.answer(f"⚠️ Error: {e}\nFormat: <code>/reply ID text</code>", parse_mode="HTML")
 
 @dp.message(Command("stats_admin"))
 async def admin_stats(message: Message):
@@ -1065,10 +1065,10 @@ async def admin_stats(message: Message):
     total  = db_get_total_users()
     active = db_get_active_users()
     await message.answer(
-        f"📊 <b>СТАТИСТИКА БОТА</b>\n"
+        f"📊 <b>BOT STATISTICS</b>\n"
         f"━━━━━━━━━━━━━━━━━\n"
-        f"👥 Всего: <b>{total}</b>\n"
-        f"🟢 Активных (24ч): <b>{active}</b>\n"
+        f"👥 Total: <b>{total}</b>\n"
+        f"🟢 Active (24h): <b>{active}</b>\n"
         f"📅 {datetime.now().strftime('%d.%m.%Y %H:%M')}",
         parse_mode="HTML"
     )
@@ -1095,7 +1095,7 @@ async def admin_broadcast(message: Message):
             try:
                 await bot.send_message(
                     uid,
-                    f"📢 <b>СООБЩЕНИЕ ОТ КОМАНДЫ</b>\n"
+                    f"📢 <b>MESSAGE FROM THE TEAM</b>\n"
                     f"━━━━━━━━━━━━━━━━━\n\n"
                     f"{text}",
                     parse_mode="HTML"
@@ -1106,18 +1106,18 @@ async def admin_broadcast(message: Message):
                 fail += 1
 
         await message.answer(
-            f"📤 <b>Рассылка завершена</b>\n"
-            f"✅ Доставлено: <b>{sent}</b>\n"
-            f"❌ Ошибок: <b>{fail}</b>",
+            f"📤 <b>Broadcast complete</b>\n"
+            f"✅ Delivered: <b>{sent}</b>\n"
+            f"❌ Errors: <b>{fail}</b>",
             parse_mode="HTML"
         )
     except Exception as e:
-        await message.answer(f"⚠️ Формат: <code>/broadcast текст</code>\n{e}", parse_mode="HTML")
+        await message.answer(f"⚠️ Format: <code>/broadcast text</code>\n{e}", parse_mode="HTML")
 
 # ════════════════════════════════════════════════
-#              ТОРГОВАЯ ПАНЕЛЬ
+#              TRADING PANEL
 # ════════════════════════════════════════════════
-@dp.message(F.text == "📊 Торговая панель")
+@dp.message(F.text == "📊 Trading Panel")
 async def t_panel(message: Message):
     if not db_get_user(message.from_user.id)["has_access"]:
         return
@@ -1125,20 +1125,20 @@ async def t_panel(message: Message):
     now_msk = datetime.utcnow() + timedelta(hours=3)
     hour = now_msk.hour
     if 3 <= hour < 10:
-        session_info = "🌏 Азиатская · умеренная волатильность"
+        session_info = "🌏 Asian · moderate volatility"
     elif 10 <= hour < 18:
-        session_info = "🌍 Европейская · высокая ликвидность"
+        session_info = "🌍 European · high liquidity"
     elif 18 <= hour < 23:
-        session_info = "🌎 Американская · максимальный объём"
+        session_info = "🌎 American · maximum volume"
     else:
-        session_info = "🌙 Ночная · осторожно, низкий объём"
+        session_info = "🌙 Night · caution, low volume"
 
     await message.answer(
-        "📊 <b>ТОРГОВАЯ ПАНЕЛЬ</b>\n"
+        "📊 <b>TRADING PANEL</b>\n"
         f"{DIV}\n\n"
         f"  📡 {session_info}\n"
-        f"  🕐 {now_msk.strftime('%H:%M')} МСК · 12 OTC-пар\n\n"
-        "Выберите <b>валютную пару:</b>",
+        f"  🕐 {now_msk.strftime('%H:%M')} MSK · 12 OTC pairs\n\n"
+        "Select a <b>currency pair:</b>",
         reply_markup=pair_kb,
         parse_mode="HTML"
     )
@@ -1150,7 +1150,7 @@ async def set_pair(message: Message):
 
     await message.answer(
         f"✅ <b>{message.text}</b>\n\n"
-        f"⏱ Выберите <b>время экспирации:</b>",
+        f"⏱ Select <b>expiration time:</b>",
         reply_markup=time_kb,
         parse_mode="HTML"
     )
@@ -1160,8 +1160,8 @@ async def set_time(message: Message):
     uid = message.from_user.id
     if uid not in user_temp_data or "pair" not in user_temp_data.get(uid, {}):
         await message.answer(
-            "⚠️ Сначала выберите пару.\n"
-            "Нажмите <b>«📊 Торговая панель»</b>.",
+            "⚠️ Please select a pair first.\n"
+            "Press <b>«📊 Trading Panel»</b>.",
             parse_mode="HTML"
         )
         return
@@ -1170,27 +1170,27 @@ async def set_time(message: Message):
     pair = user_temp_data[uid]["pair"]
 
     await message.answer(
-        f"⚙️ <b>ГОТОВО</b>\n"
+        f"⚙️ <b>READY</b>\n"
         f"{DIV}\n\n"
-        f"  Пара:      <b>{pair}</b>\n"
-        f"  Экспирация: <b>{message.text}</b>\n\n"
-        f"<i>Нажмите «⚡ Получить сигнал»</i>",
+        f"  Pair:       <b>{pair}</b>\n"
+        f"  Expiration: <b>{message.text}</b>\n\n"
+        f"<i>Press «⚡ Get Signal»</i>",
         reply_markup=signal_kb,
         parse_mode="HTML"
     )
 
 # ════════════════════════════════════════════════
-#     ГЛАВНЫЙ ХЕНДЛЕР СИГНАЛА — НОВЫЙ ДИЗАЙН
+#     MAIN SIGNAL HANDLER — NEW DESIGN
 # ════════════════════════════════════════════════
 @dp.message(Command("signals"))
-@dp.message(F.text == "⚡ Получить сигнал")
+@dp.message(F.text == "⚡ Get Signal")
 async def get_signal(message: Message):
     uid = message.from_user.id
     u   = db_get_user(uid)
     if not u["has_access"]:
         return
 
-    # Антиспам
+    # Anti-spam
     now_ts = time.time()
     last_ts = last_signal_request.get(uid, 0)
     if now_ts - last_ts < 1.5:
@@ -1209,45 +1209,45 @@ async def get_signal(message: Message):
     if daily >= current_limit:
         if sub_type == "free":
             return await message.answer(
-                "🛑 <b>ДНЕВНОЙ ЛИМИТ ИСЧЕРПАН</b>\n"
+                "🛑 <b>DAILY LIMIT REACHED</b>\n"
                 f"{DIV}\n\n"
-                f"Использовано <b>{current_limit} / {current_limit}</b> бесплатных сигналов.\n\n"
-                "💡 Получите больше сигналов с подпиской:\n\n"
-                "🔵 <b>JUNIOR</b> — <b>50 сигналов/день</b>  |  <b>100$</b>\n"
-                "🟣 <b>PRO</b>    — <b>100 сигналов/день</b>  |  <b>200$</b>\n\n"
-                "⏳ <i>Или ждите сброса в 00:00 МСК</i>",
+                f"Used <b>{current_limit} / {current_limit}</b> free signals.\n\n"
+                "💡 Get more signals with a subscription:\n\n"
+                "🔵 <b>JUNIOR</b> — <b>50 signals/day</b>  |  <b>100$</b>\n"
+                "🟣 <b>PRO</b>    — <b>100 signals/day</b>  |  <b>200$</b>\n\n"
+                "⏳ <i>Or wait for the reset at 00:00 MSK</i>",
                 reply_markup=get_upgrade_kb(),
                 parse_mode="HTML"
             )
         else:
             return await message.answer(
-                "🛑 <b>ЛИМИТ ИСЧЕРПАН</b>\n"
+                "🛑 <b>LIMIT REACHED</b>\n"
                 f"{DIV}\n\n"
-                f"Тариф <b>{sub_type.upper()}</b>: <b>{daily} / {current_limit}</b> сигналов.\n\n"
-                "Лимит защищает от эмоциональной торговли.\n"
-                "Возвращайтесь завтра — сброс в <b>00:00 МСК</b>.\n\n"
-                "💡 Хотите больше? Смените тариф в <b>«💎 Подписка»</b>",
+                f"Plan <b>{sub_type.upper()}</b>: <b>{daily} / {current_limit}</b> signals.\n\n"
+                "The limit protects against emotional trading.\n"
+                "Come back tomorrow — resets at <b>00:00 MSK</b>.\n\n"
+                "💡 Want more? Change your plan in <b>«💎 Subscription»</b>",
                 reply_markup=get_upgrade_kb(),
                 parse_mode="HTML"
             )
 
-    # Проверка конфигурации
+    # Check configuration
     data = user_temp_data.get(uid, {})
 
     if not data.get("pair"):
         return await message.answer(
-            "⚠️ <b>Пара не выбрана!</b>\n\n"
-            "Нажмите <b>«📊 Торговая панель»</b>,\n"
-            "выберите пару и время экспирации.",
+            "⚠️ <b>No pair selected!</b>\n\n"
+            "Press <b>«📊 Trading Panel»</b>,\n"
+            "select a pair and expiration time.",
             reply_markup=get_main_menu(True),
             parse_mode="HTML"
         )
 
     if not data.get("time"):
         await message.answer(
-            f"⚠️ <b>Время не выбрано!</b>\n\n"
-            f"Пара: <b>{data['pair']}</b>\n\n"
-            f"Выберите <b>экспирацию:</b>",
+            f"⚠️ <b>No time selected!</b>\n\n"
+            f"Pair: <b>{data['pair']}</b>\n\n"
+            f"Select <b>expiration:</b>",
             reply_markup=time_kb,
             parse_mode="HTML"
         )
@@ -1255,31 +1255,31 @@ async def get_signal(message: Message):
 
     last_signal_request[uid] = now_ts
 
-    # Анимированный прогресс-бар
+    # Animated progress bar
     progress_frames = [
-        ("⬛⬛⬛⬛⬛  0%",   "Подключение к терминалу..."),
+        ("⬛⬛⬛⬛⬛  0%",   "Connecting to terminal..."),
         ("🟩🟩⬛⬛⬛  40%",  "RSI · EMA · MACD..."),
-        ("🟩🟩🟩🟩⬛  80%",  "BB · Stoch · паттерны..."),
-        ("🟩🟩🟩🟩🟩  100%", "Сигнал сформирован ✅"),
+        ("🟩🟩🟩🟩⬛  80%",  "BB · Stoch · patterns..."),
+        ("🟩🟩🟩🟩🟩  100%", "Signal formed ✅"),
     ]
 
     try:
         progress_msg = await message.answer(
-            f"<b>⚡ АНАЛИЗ РЫНКА</b>\n"
+            f"<b>⚡ MARKET ANALYSIS</b>\n"
             f"{DIV}\n\n"
             f"<code>{progress_frames[0][0]}</code>\n"
             f"<i>{progress_frames[0][1]}</i>",
             parse_mode="HTML"
         )
     except Exception as e:
-        print(f"Ошибка прогресс-бара: {e}")
+        print(f"Progress bar error: {e}")
         return
 
     for bar, label in progress_frames[1:]:
         await asyncio.sleep(0.35)
         try:
             await progress_msg.edit_text(
-                f"<b>⚡ АНАЛИЗ РЫНКА</b>\n"
+                f"<b>⚡ MARKET ANALYSIS</b>\n"
                 f"{DIV}\n\n"
                 f"<code>{bar}</code>\n"
                 f"<i>{label}</i>",
@@ -1288,83 +1288,83 @@ async def get_signal(message: Message):
         except (TelegramBadRequest, Exception):
             pass
 
-    # Генерация сигнала
+    # Signal generation
     direction, confidence, _ = generate_otc_signal(data["pair"], data["time"])
 
     db_update_user(uid, signals=u["signals"] + 1, daily=daily + 1, date=today)
     new_daily = daily + 1
     remaining = current_limit - new_daily
 
-    # ── НОВЫЙ КОМПАКТНЫЙ ДИЗАЙН СИГНАЛА ─────────────────────────────
+    # ── NEW COMPACT SIGNAL DESIGN ─────────────────────────────
     is_up = direction == "UP"
 
     if is_up:
-        dir_line   = "▲  ВВЕРХ  ·  CALL"
+        dir_line   = "▲  UP  ·  CALL"
         dir_emoji  = "🟢"
     else:
-        dir_line   = "▼  ВНИЗ   ·  PUT"
+        dir_line   = "▼  DOWN  ·  PUT"
         dir_emoji  = "🔴"
 
-    # Уверенность
+    # Confidence
     conf_bar = confidence_bar(confidence)
 
     if confidence >= 93:
-        conf_label = "🔥 Экстремальный"
+        conf_label = "🔥 Extreme"
     elif confidence >= 88:
-        conf_label = "💎 Сильный"
+        conf_label = "💎 Strong"
     elif confidence >= 84:
-        conf_label = "⚡ Устойчивый"
+        conf_label = "⚡ Steady"
     else:
-        conf_label = "📊 Стандартный"
+        conf_label = "📊 Standard"
 
-    # Лимит
+    # Limit line
     if remaining == 0:
-        limit_line = f"<b>⚠️ Последний сигнал на сегодня!</b>"
+        limit_line = f"<b>⚠️ Last signal for today!</b>"
     elif remaining <= 3:
-        limit_line = f"<i>Осталось: <b>{remaining}</b> сигналов</i>"
+        limit_line = f"<i>Remaining: <b>{remaining}</b> signals</i>"
     else:
-        limit_line = f"<i>{new_daily} / {current_limit} · осталось {remaining}</i>"
+        limit_line = f"<i>{new_daily} / {current_limit} · {remaining} remaining</i>"
 
-    # PRO-блок
+    # PRO block
     pro_block = ""
     if sub_type in ("junior", "pro"):
         now_msk = datetime.utcnow() + timedelta(hours=3)
         hour = now_msk.hour
         if 3 <= hour < 10:
-            session = "🌏 Азиатская"
+            session = "🌏 Asian"
         elif 10 <= hour < 18:
-            session = "🌍 Европейская"
+            session = "🌍 European"
         elif 18 <= hour < 23:
-            session = "🌎 Американская"
+            session = "🌎 American"
         else:
-            session = "🌙 Ночная"
+            session = "🌙 Night"
 
-        volatility_opts = ["🟢 Низкая", "🟡 Умеренная", "🟠 Средняя", "🔴 Высокая"]
+        volatility_opts = ["🟢 Low", "🟡 Moderate", "🟠 Medium", "🔴 High"]
         rng_vol = random.Random(hash(f"{data['pair']}_{confidence}_{hour}"))
         volatility = rng_vol.choice(volatility_opts)
 
         pro_block = (
             f"\n{SDIV}\n"
-            f"  📡 Сессия:       <b>{session}</b>\n"
-            f"  📊 Волатильность: <b>{volatility}</b>\n"
+            f"  📡 Session:    <b>{session}</b>\n"
+            f"  📊 Volatility: <b>{volatility}</b>\n"
         )
 
-    # PRO расширенный блок
+    # PRO extended block
     pro_extra = ""
     if sub_type == "pro":
         rng_pro = random.Random(hash(f"{data['pair']}_{direction}_{confidence}"))
         trend_strength = rng_pro.randint(55, 95)
         trend_bar = confidence_bar(trend_strength)
         pro_tips = [
-            "Стандартные условия — работайте по алгоритму",
-            "Высокая уверенность — стандартный объём",
-            "Умеренный сигнал — рекомендуем 1–2% депозита",
-            "Сильный перекос — хорошая точка входа",
-            "Контртренд — повышенная осторожность",
+            "Standard conditions — follow the algorithm",
+            "High confidence — standard volume",
+            "Moderate signal — recommend 1–2% of deposit",
+            "Strong bias — good entry point",
+            "Counter-trend — extra caution advised",
         ]
         pro_tip = rng_pro.choice(pro_tips)
         pro_extra = (
-            f"  💪 Тренд: <code>{trend_bar}</code> <b>{trend_strength}%</b>\n"
+            f"  💪 Trend: <code>{trend_bar}</code> <b>{trend_strength}%</b>\n"
             f"  💬 <i>{pro_tip}</i>\n"
         )
 
@@ -1372,15 +1372,15 @@ async def get_signal(message: Message):
         f"{dir_emoji} <b>{dir_line}</b> {dir_emoji}\n"
         f"{DIV}\n"
         f"  {data['pair']}\n"
-        f"  Экспирация: <b>{data['time']}</b>\n"
+        f"  Expiration: <b>{data['time']}</b>\n"
         f"{SDIV}\n"
-        f"  ИИ: <code>{conf_bar}</code> <b>{confidence}%</b>\n"
+        f"  AI: <code>{conf_bar}</code> <b>{confidence}%</b>\n"
         f"  {conf_label}"
         f"{pro_block}"
         f"{pro_extra}"
         f"\n{SDIV}\n"
         f"  {limit_line}\n"
-        f"<i>⚡ 1–3% от баланса на сделку</i>"
+        f"<i>⚡ 1–3% of balance per trade</i>"
     )
 
     try:
@@ -1391,13 +1391,13 @@ async def get_signal(message: Message):
     try:
         await message.answer(res, parse_mode="HTML", reply_markup=signal_kb)
     except Exception as e:
-        print(f"Ошибка отправки сигнала: {e}")
+        print(f"Signal send error: {e}")
 
 # ════════════════════════════════════════════════
-#              ПРОФИЛЬ
+#              PROFILE
 # ════════════════════════════════════════════════
 @dp.message(Command("profile"))
-@dp.message(F.text == "👤 Профиль")
+@dp.message(F.text == "👤 Profile")
 async def profile(message: Message):
     u         = db_get_user(message.from_user.id)
     rank      = get_rank(u["signals"])
@@ -1405,19 +1405,19 @@ async def profile(message: Message):
     sub_limit = sub_plan["limit"]
     sub_emoji = sub_plan["emoji"]
 
-    expiry_str = "∞ Бессрочно"
+    expiry_str = "∞ Lifetime"
     days_info  = ""
     if u['sub_expires']:
         expiry_str = u['sub_expires'].strftime("%d.%m.%Y %H:%M")
         days_left  = max((u['sub_expires'] - datetime.now()).days, 0)
         days_used  = 7 - days_left
         bar        = days_bar(days_used, 7)
-        days_info  = f"\n  Осталось: <code>[{bar}]</code> <b>{days_left} дн.</b>"
+        days_info  = f"\n  Remaining: <code>[{bar}]</code> <b>{days_left} days</b>"
 
     next_title, next_level, signals_left = get_next_rank(u["signals"])
     rank_progress = ""
     if next_title:
-        rank_progress = f"\n  До <b>{next_title}</b>: ещё <b>{signals_left}</b> сигналов"
+        rank_progress = f"\n  To <b>{next_title}</b>: <b>{signals_left}</b> more signals"
 
     rank_bar_str = ""
     for lo, hi, title, level in RANKS:
@@ -1428,32 +1428,32 @@ async def profile(message: Message):
     used_pct  = min(int((u["daily_count"] / sub_limit) * 10), 10)
     daily_bar = "▓" * used_pct + "░" * (10 - used_pct)
 
-    name = message.from_user.first_name or "Трейдер"
+    name = message.from_user.first_name or "Trader"
 
     profile_kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🧮 Рассчитать лот", callback_data="open_lot_calc")],
+        [InlineKeyboardButton(text="🧮 Calculate Lot", callback_data="open_lot_calc")],
     ])
 
     await message.answer(
-        f"👤 <b>ПРОФИЛЬ</b>\n"
+        f"👤 <b>PROFILE</b>\n"
         f"{DIV}\n\n"
         f"  {name}  ·  <code>{message.from_user.id}</code>\n\n"
         f"{SDIV}\n"
-        f"🏆 <b>Ранг:</b> {rank}\n"
+        f"🏆 <b>Rank:</b> {rank}\n"
         f"  <code>{rank_bar_str}</code>"
         f"{rank_progress}\n\n"
         f"{SDIV}\n"
-        f"💎 <b>Подписка:</b> {sub_emoji} <b>{u['sub_type'].upper()}</b>\n"
-        f"  Лимит:    <b>{sub_limit} сиг./день</b>\n"
-        f"  Истекает: <b>{expiry_str}</b>"
+        f"💎 <b>Subscription:</b> {sub_emoji} <b>{u['sub_type'].upper()}</b>\n"
+        f"  Limit:   <b>{sub_limit} sig./day</b>\n"
+        f"  Expires: <b>{expiry_str}</b>"
         f"{days_info}\n\n"
         f"{SDIV}\n"
-        f"📈 <b>Активность:</b>\n"
-        f"  Всего: <b>{u['signals']}</b>  ·  Сегодня:\n"
+        f"📈 <b>Activity:</b>\n"
+        f"  Total: <b>{u['signals']}</b>  ·  Today:\n"
         f"  <code>[{daily_bar}]</code> <b>{u['daily_count']} / {sub_limit}</b>\n\n"
         f"{DIV}\n"
-        f"🔐 Лицензия: {'<b>АКТИВНА ✅</b>' if u['has_access'] else '<b>❌ Нет доступа</b>'}\n\n"
-        f"<i>Рассчитайте оптимальный лот:</i>",
+        f"🔐 License: {'<b>ACTIVE ✅</b>' if u['has_access'] else '<b>❌ No access</b>'}\n\n"
+        f"<i>Calculate your optimal lot:</i>",
         reply_markup=profile_kb,
         parse_mode="HTML"
     )
@@ -1462,19 +1462,19 @@ async def profile(message: Message):
 async def open_lot_calc_callback(callback: CallbackQuery):
     pending_lot_calc.add(callback.from_user.id)
     await callback.message.answer(
-        "🧮 <b>КАЛЬКУЛЯТОР ЛОТА</b>\n"
+        "🧮 <b>LOT CALCULATOR</b>\n"
         f"{DIV}\n\n"
-        "Введите <b>баланс в долларах</b>:\n\n"
-        "<i>Минимум: 50$  |  Пример: 100 или 500</i>",
+        "Enter your <b>balance in dollars</b>:\n\n"
+        "<i>Minimum: 50$  |  Example: 100 or 500</i>",
         reply_markup=back_kb,
         parse_mode="HTML"
     )
     await callback.answer()
 
 # ════════════════════════════════════════════════
-#              СТАТИСТИКА
+#              STATISTICS
 # ════════════════════════════════════════════════
-@dp.message(F.text == "📈 Статистика")
+@dp.message(F.text == "📈 Statistics")
 async def stats(message: Message):
     seed_val = int(datetime.now().strftime("%Y%m%d"))
     random.seed(seed_val)
@@ -1505,29 +1505,29 @@ async def stats(message: Message):
         hourly_bars += f"  {h:02d}:00  <code>{bar_h}</code>\n"
 
     await message.answer(
-        f"📊 <b>СТАТИСТИКА ТЕРМИНАЛА</b>\n"
+        f"📊 <b>TERMINAL STATISTICS</b>\n"
         f"{DIV}\n\n"
         f"WinRate (Smart Precision):\n"
         f"<code>[{wr_bar}] {win_rate}%</code>\n\n"
-        f"🟢 Профит: <b>{plus_deals:,}</b>  🔴 Убыток: <b>{minus_deals:,}</b>  🔁 Возврат: <b>{refunds:,}</b>\n"
-        f"📦 Сигналов: <b>{total_day:,}</b>\n\n"
+        f"🟢 Profit: <b>{plus_deals:,}</b>  🔴 Loss: <b>{minus_deals:,}</b>  🔁 Refund: <b>{refunds:,}</b>\n"
+        f"📦 Signals: <b>{total_day:,}</b>\n\n"
         f"{SDIV}\n"
-        f"⚡ <b>Система:</b>\n"
-        f"  ROI:        <b>{avg_profit}%</b>\n"
-        f"  Топ пара:   <b>{best_pair}</b>\n"
-        f"  Пик:        <b>{peak_hour}:00–{peak_hour+1}:00</b>\n\n"
+        f"⚡ <b>System:</b>\n"
+        f"  ROI:       <b>{avg_profit}%</b>\n"
+        f"  Top pair:  <b>{best_pair}</b>\n"
+        f"  Peak:      <b>{peak_hour}:00–{peak_hour+1}:00</b>\n\n"
         f"{SDIV}\n"
-        f"📈 <b>Активность (МСК):</b>\n\n"
+        f"📈 <b>Activity (MSK):</b>\n\n"
         f"{hourly_bars}\n"
         f"{SDIV}\n"
-        f"👥 Трейдеров: <b>{total_users + 152:,}</b>  ·  Активных: <b>{active_users + 94:,}</b>\n\n"
-        f"<i>📅 {datetime.now().strftime('%d.%m.%Y %H:%M')} МСК</i>",
+        f"👥 Traders: <b>{total_users + 152:,}</b>  ·  Active: <b>{active_users + 94:,}</b>\n\n"
+        f"<i>📅 {datetime.now().strftime('%d.%m.%Y %H:%M')} MSK</i>",
         parse_mode="HTML"
     )
     random.seed()
 
 # ════════════════════════════════════════════════
-#              ЗАПУСК
+#              STARTUP
 # ════════════════════════════════════════════════
 async def main():
     print("=" * 60)
